@@ -1,0 +1,69 @@
+@startuml
+left to right direction
+skinparam actorStyle awesome
+
+' ============ 参与者 ============
+actor "读者\n(Reader)" as Reader
+actor "学生读者\n(Student)" as Student
+actor "教师读者\n(Teacher)" as Teacher
+actor "图书管理员\n(Librarian)" as Librarian
+actor "系统管理员\n(SystemAdmin)" as SystemAdmin
+actor "系统\n(System)" as System
+
+' ============ 泛化关系：学生读者、教师读者泛化自读者 ============
+Reader <|-- Student
+Reader <|-- Teacher
+
+' ============ 用例定义 ============
+usecase "注册读者账号" as UC01
+usecase "办理借阅证" as UC02
+usecase "删除借阅证" as UC03
+usecase "添加图书管理员" as UC04
+usecase "删除图书管理员" as UC05
+usecase "添加图书标题信息" as UC06
+usecase "删除图书标题信息" as UC07
+usecase "添加馆藏副本" as UC08
+usecase "删除馆藏副本" as UC09
+usecase "查询图书" as UC10
+usecase "办理借书" as UC11
+usecase "办理还书" as UC12
+usecase "查询借阅信息" as UC13
+usecase "预约图书" as UC14
+usecase "计算超期罚款" as UC15
+usecase "维护借阅规则和罚款规则" as UC16
+usecase "续借图书" as UC17
+usecase "标记罚款已缴" as UC18
+
+' ============ 读者用例（直接操作） ============
+Reader --> UC10
+Reader --> UC13
+Reader --> UC14
+
+' ============ 图书管理员用例 ============
+Librarian --> UC01
+Librarian --> UC02
+Librarian --> UC03
+Librarian --> UC06
+Librarian --> UC07
+Librarian --> UC08
+Librarian --> UC09
+Librarian --> UC10
+Librarian --> UC11
+Librarian --> UC12
+Librarian --> UC13
+Librarian --> UC14
+Librarian --> UC16
+Librarian --> UC17
+Librarian --> UC18
+
+' ============ 系统管理员用例 ============
+SystemAdmin --> UC04
+SystemAdmin --> UC05
+
+' ============ 系统（自动）用例 ============
+System --> UC15
+
+' ============ include 关系：办理还书包含计算超期罚款 ============
+UC12 ..> UC15 : <<include>>
+
+@enduml
