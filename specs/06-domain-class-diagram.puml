@@ -1,0 +1,212 @@
+@startuml
+' ============================================================
+' 领域类图：图书管理系统
+' 依据：specs/05-domain-model.md
+' 说明：仅表达领域层概念（实体、策略、领域服务），
+'       不含 Controller / Repository / DTO 等设计类。
+' ============================================================
+
+title 图书管理系统 - 领域类图
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+' ============ 读者域 ============
+abstract class Reader {
+  + readerId : string
+  + name : string
+  + contact : string
+  + readerType : ReaderType
+  + accountStatus : AccountStatus
+  + active : bool
+  + currentLoans() : Loan[]
+  + hasOverdueLoan() : bool
+  + hasUnpaidFine() : bool
+  + activeReservations() : Reservation[]
+}
+
+class StudentReader {
+  + studentType : StudentType
+}
+
+class TeacherReader {
+}
+
+class Account {
+  + accountId : string
+  + username : string
+  + password : string
+  + status : AccountStatus
+  + activate() : void
+}
+
+class BorrowCard {
+  + cardNo : string
+  + status : CardStatus
+  + issueDate : date
+  + isValid() : bool
+  + invalidate() : void
+}
+
+' ============ 借出物域 ============
+abstract class LibraryItem {
+  + itemId : string
+  + title : string
+  + author : string
+  + itemType : ItemType
+  + getLoanPeriod(readerType) : int
+  + getFineRate() : decimal
+  + isRenewable() : bool
+}
+
+class Book {
+  + isbn : string
+  + language : Language
+  + category : string
+  + publisher : string
+  + publishYear : int
+}
+
+class Magazine {
+  + issn : string
+  + issueNo : string
+  + language : Language
+}
+
+class Thesis {
+  + degree : string
+  + institution : string
+  + year : int
+}
+
+class Copy {
+  + copyNo : string
+  + location : string
+  + status : CopyStatus
+}
+
+' ============ 借阅与预约域 ============
+class Loan {
+  + loanId : string
+  + borrowDate : date
+  + dueDate : date
+  + returnDate : date
+  + renewed : bool
+  + status : LoanStatus
+  + renew() : void
+  + return() : void
+  + isOverdue() : bool
+}
+
+class Reservation {
+  + reservationId : string
+  + reserveTime : datetime
+  + priority : int
+  + status : ReservationStatus
+  + expireTime : datetime
+  + reserve() : void
+  + assign() : void
+  + fulfill() : void
+  + cancel() : void
+  + expire() : void
+}
+
+' ============ 罚款域 ============
+class FineRecord {
+  + fineId : string
+  + amount : decimal
+  + status : FineStatus
+  + paidTime : datetime
+  + markPaid() : void
+}
+
+' ============ 规则与策略域 ============
+class BorrowPolicy <<Policy>> {
+  + readerType : ReaderType
+  + itemType : ItemType
+  + maxCount : int
+  + loanPeriodDays : int
+  + renewable : bool
+  + countTowardLimit : bool
+  + baseMaxCount(readerType) : int
+  + effectiveMaxCount(readerType, itemType) : int
+  + loanPeriod(readerType, itemType) : int
+  + canRenew(itemType) : bool
+}
+
+class FineRule <<Policy>> {
+  + itemType : ItemType
+  + ratePerDay : decimal
+  + maxFine : decimal
+  + ratePerDay(itemType) : decimal
+  + calculateFine(itemType, overdueDays) : decimal
+}
+
+' ============ 领域服务 ============
+class BorrowService <<Service>> {
+  + borrow(reader, copy) : void
+  + returnBook(loan) : void
+  + renew(loan) : void
+}
+
+class FineService <<Service>> {
+  + computeFine(loan) : FineRecord
+}
+
+class ReservationService <<Service>> {
+  + allocate(copy) : void
+}
+
+' ============ 泛化关系（继承） ============
+Reader <|-- StudentReader
+Reader <|-- TeacherReader
+LibraryItem <|-- Book
+LibraryItem <|-- Magazine
+LibraryItem <|-- Thesis
+
+' ============ 组合关系（整体-部分） ============
+LibraryItem "1" *-- "*" Copy : 含多副本
+
+' ============ 关联关系 ============
+Reader "1" -- "1" Account : 登录凭据
+Reader "1" -- "1" BorrowCard : 借阅凭证
+Reader "1" -- "*" Loan : 借阅
+Reader "1" -- "*" Reservation : 预约
+Reader "1" -- "*" FineRecord : 欠费
+LibraryItem "1" -- "*" Reservation : 被预约
+Copy "1" -- "*" Loan : 被借出
+Loan "1" -- "0..1" FineRecord : 超期产生
+
+' ============ 策略委托与依赖 ============
+LibraryItem ..> BorrowPolicy : getLoanPeriod 委托
+LibraryItem ..> FineRule : getFineRate 委托
+BorrowService ..> BorrowPolicy : 查询借阅规则
+BorrowService ..> FineService : 计算罚款
+FineService ..> FineRule : 查询罚款规则
+ReservationService ..> Reservation : 按优先级分配
+ReservationService ..> Copy : 置为预约保留
+
+' ============ 子类差异说明 ============
+note right of StudentReader
+  学生读者：studentType 细分
+  专科生 3 本 / 本科生 5 本 / 研究生 8 本 / 博士生 10 本
+  期限 30 天（专/本）/ 60 天（研/博）
+end note
+
+note right of TeacherReader
+  教师读者：借阅上限 15 本 / 期限 90 天
+  预约优先级最高（BR-013）
+end note
+
+' ============ 策略作用说明 ============
+note bottom of BorrowPolicy
+  借阅策略：读者类型 × 借出物类型
+  → 借阅上限 / 期限 / 续借（BR-001~007、BR-011~014）
+end note
+
+note bottom of FineRule
+  罚款策略：借出物类型
+  → 每日单价 / 单册上限（BR-008~009）
+end note
+
+@enduml
