@@ -1,0 +1,115 @@
+@startuml
+title 图书管理系统 - 包图（分层架构 + 业务模块 + 依赖方向）
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam dpi 120
+
+' ============ 表示层 ============
+package "presentation（表示层）" as PRES #LightYellow {
+  package "controllers（FastAPI Router）" as CTRL {
+    package reader_controller as PC_reader
+    package card_controller as PC_card
+    package catalog_controller as PC_catalog
+    package circulation_controller as PC_circulation
+    package reservation_controller as PC_reservation
+    package fine_controller as PC_fine
+    package admin_controller as PC_admin
+  }
+  package "view（Jinja2 模板）" as VIEW
+}
+
+' ============ DTO ============
+package "dto（Pydantic Schema）" as DTO #LightCyan {
+  package "request（*Request）" as REQ
+  package "response（*Response）" as RESP
+}
+
+' ============ 应用服务层 ============
+package "application（应用服务层）" as APP #LightGreen {
+  package "reader（ReaderAppService）" as A_reader
+  package "card（CardAppService）" as A_card
+  package "catalog（CatalogAppService）" as A_catalog
+  package "circulation（CirculationAppService）" as A_circulation
+  package "reservation（ReservationAppService）" as A_reservation
+  package "fine（FineAppService）" as A_fine
+  package "admin（AdminAppService）" as A_admin
+}
+
+' ============ 领域层 ============
+package "domain（领域层）" as DOM #LightBlue {
+  package "entities（Reader/Copy/Loan...）" as ENT
+  package "services（BorrowService/FineService/ReservationService）" as DOMSVC
+  package "policies（BorrowPolicy/FineRule）" as POL
+  package "factories（ReaderFactory/LibraryItemFactory）" as FACT
+  package "repositories（Repository 抽象接口）" as REPO_IFC
+}
+
+' ============ 基础设施层 ============
+package "infrastructure（基础设施层）" as INFRA #LightPink {
+  package "orm（SQLAlchemy Model）" as ORM
+  package "repositories（Repository 实现）" as REPO_IMPL
+  package "uow（UnitOfWork / Session）" as UOW
+  package "security（密码加密/鉴权依赖）" as SEC
+}
+
+' ============ 测试层 ============
+package "test（测试层）" as TEST #LightGray {
+  package "unit（领域规则单元测试）" as T_UNIT
+  package "integration（接口链路集成测试）" as T_INT
+}
+
+' ============ 依赖方向 ============
+' 表示层 → DTO / 应用服务层
+CTRL --> DTO
+VIEW --> DTO
+CTRL --> APP
+
+' 应用服务层 → 领域层
+APP --> DOM
+
+' 应用服务层 → 基础设施层（仅通过 UOW 声明事务边界）
+APP --> UOW
+
+' 领域层内部依赖
+DOMSVC --> ENT
+DOMSVC --> POL
+DOMSVC --> FACT
+DOMSVC --> REPO_IFC
+
+' 基础设施层实现领域层接口（依赖倒置 DIP）
+REPO_IMPL ..|> REPO_IFC
+REPO_IMPL --> ORM
+UOW --> REPO_IMPL
+
+' 测试层 → 各运行时层
+TEST ..> PRES
+TEST ..> APP
+TEST ..> DOM
+TEST ..> INFRA
+
+' ============ 关键约束标注 ============
+note right of PRES
+  约束①（Controller 不直接依赖 Repository）：
+  presentation 仅依赖 dto 与 application，
+  不直接引用 domain.repositories 或
+  infrastructure.repositories。
+end note
+
+note bottom of INFRA
+  约束②（Infrastructure 实现 Repository 接口）：
+  infrastructure.repositories 实现 domain 定义的
+  Repository 抽象接口（依赖倒置 DIP），
+  领域层只依赖抽象接口，不感知 SQLite/SQLAlchemy。
+end note
+
+note right of APP
+  模块纵向切片说明：
+  7 个业务模块（reader/card/catalog/circulation/
+  reservation/fine/admin）纵向跨越四层，
+  每层按模块拆分对应包（XxxController /
+  XxxAppService / Xxx 实体与领域服务 /
+  XxxRepository 实现）。
+end note
+
+@enduml
